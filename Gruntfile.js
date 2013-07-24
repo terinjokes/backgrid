@@ -42,16 +42,19 @@ module.exports = function (grunt) {
             '(function (factory) {\n\n' +
             '  // CommonJS\n' +
             '  if (typeof exports == "object") {\n' +
-            '    module.exports = factory(module.exports,\n' +
-            '                             require("underscore"),\n' +
-            '                             require("backbone"));\n' +
+            '    var root = {}\n' +
+            '    factory(root,\n' +
+            '            require("underscore"),\n' +
+            '            require("jquery2"),\n' +
+            '            require("backbone"));\n' +
+            '    module.exports = root.Backgrid;\n' +
             '  }\n' +
             '  // Browser\n' +
             '  else if (typeof _ !== "undefined" &&\n' +
             '    typeof Backbone !== "undefined") {\n' +
-            '    factory(window, _, Backbone);\n' +
+            '    factory(window, _, jQuery, Backbone);\n' +
             '  }\n' +
-            '}(function (root, _, Backbone) {\n\n  \"use strict\";\n',
+            '}(function (root, _, $, Backbone) {\n\n  \"use strict\";\n',
           footer: "}));"
         },
         src: [
