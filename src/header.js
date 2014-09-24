@@ -25,12 +25,6 @@ var HeaderCell = Backgrid.HeaderCell = Backbone.View.extend({
   },
 
   /**
-    @property {null|"ascending"|"descending"} _direction The current sorting
-    direction of this column.
-  */
-  _direction: null,
-
-  /**
      Initializer.
 
      @param {Object} options
@@ -39,15 +33,12 @@ var HeaderCell = Backgrid.HeaderCell = Backbone.View.extend({
      @throws {TypeError} If options.column or options.collection is undefined.
    */
   initialize: function (options) {
-    Backgrid.requireOptions(options, ["column", "collection"]);
     this.column = options.column;
     if (!(this.column instanceof Column)) {
       this.column = new Column(this.column);
     }
 
-    this.listenTo(this.collection, "backgrid:sort", this._resetCellDirection);
-
-    var column = this.column, $el = this.$el;
+    var column = this.column, collection = this.collection, $el = this.$el;
 
     this.listenTo(column, "change:editable change:sortable change:renderable",
                   function (column) {
@@ -58,41 +49,34 @@ var HeaderCell = Backgrid.HeaderCell = Backbone.View.extend({
                       }
                     }
                   });
+    this.listenTo(column, "change:direction", this.setCellDirection);
+    this.listenTo(column, "change:name change:label", this.render);
 
-    if (column.get("editable")) $el.addClass("editable");
-    if (column.get("sortable")) $el.addClass("sortable");
-    if (column.get("renderable")) $el.addClass("renderable");
+    if (Backgrid.callByNeed(column.editable(), column, collection)) $el.addClass("editable");
+    if (Backgrid.callByNeed(column.sortable(), column, collection)) $el.addClass("sortable");
+    if (Backgrid.callByNeed(column.renderable(), column, collection)) $el.addClass("renderable");
+
+    this.listenTo(collection.fullCollection || collection, "sort", this.removeCellDirection);
   },
 
   /**
-     Gets or sets the direction of this cell. If called directly without
-     parameters, returns the current direction of this cell, otherwise sets
-     it. If a `null` is given, sets this cell back to the default order.
-
-     @param {null|"ascending"|"descending"} dir
-     @return {null|string} The current direction or the changed direction.
+     Event handler for the collection's `sort` event. Removes all the CSS
+     direction classes.
    */
-  direction: function (dir) {
-    if (arguments.length) {
-      if (this._direction) this.$el.removeClass(this._direction);
-      if (dir) this.$el.addClass(dir);
-      this._direction = dir;
-    }
-
-    return this._direction;
+  removeCellDirection: function () {
+    this.$el.removeClass("ascending").removeClass("descending");
+    this.column.set("direction", null);
   },
 
   /**
-     Event handler for the Backbone `backgrid:sort` event. Resets this cell's
-     direction to default if sorting is being done on another column.
-
-     @private
+     Event handler for the column's `change:direction` event. If this
+     HeaderCell's column is being sorted on, it applies the direction given as a
+     CSS class to the header cell. Removes all the CSS direction classes
+     otherwise.
    */
-  _resetCellDirection: function (columnToSort, direction, comparator, collection) {
-    if (collection == this.collection) {
-      if (columnToSort !== this.column) this.direction(null);
-      else this.direction(direction);
-    }
+  setCellDirection: function (column, direction) {
+    this.$el.removeClass("ascending").removeClass("descending");
+    if (column.cid == this.column.cid) this.$el.addClass(direction);
   },
 
   /**
@@ -103,19 +87,22 @@ var HeaderCell = Backgrid.HeaderCell = Backbone.View.extend({
   onClick: function (e) {
     e.preventDefault();
 
+    var column = this.column;
+    var collection = this.collection;
+    var event = "backgrid:sort";
+
     function cycleSort(header, col) {
-      if (header.direction() === "ascending") header.sort(col, "descending");
-      else if (header.direction() === "descending") header.sort(col, null);
-      else header.sort(col, "ascending");
+      if (column.get("direction") === "ascending") collection.trigger(event, col, "descending");
+      else if (column.get("direction") === "descending") collection.trigger(event, col, null);
+      else collection.trigger(event, col, "ascending");
     }
 
     function toggleSort(header, col) {
-      if (header.direction() === "ascending") header.sort(col, "descending");
-      else header.sort(col, "ascending");
+      if (column.get("direction") === "ascending") collection.trigger(event, col, "descending");
+      else collection.trigger(event, col, "ascending");
     }
 
-    var column = this.column;
-    var sortable = Backgrid.callByNeed(column.sortable(), column, this.model);
+    var sortable = Backgrid.callByNeed(column.sortable(), column, this.collection);
     if (sortable) {
       var sortType = column.get("sortType");
       if (sortType === "toggle") toggleSort(this, column);
@@ -124,89 +111,23 @@ var HeaderCell = Backgrid.HeaderCell = Backbone.View.extend({
   },
 
   /**
-     If the underlying collection is a Backbone.PageableCollection in
-     server-mode or infinite-mode, a page of models is fetched after sorting is
-     done on the server.
-
-     If the underlying collection is a Backbone.PageableCollection in
-     client-mode, or any
-     [Backbone.Collection](http://backbonejs.org/#Collection) instance, sorting
-     is done on the client side. If the collection is an instance of a
-     Backbone.PageableCollection, sorting will be done globally on all the pages
-     and the current page will then be returned.
-
-     Triggers a Backbone `backgrid:sort` event from the collection when done
-     with the column, direction, comparator and a reference to the collection.
-
-     @param {Backgrid.Column} column
-     @param {null|"ascending"|"descending"} direction
-
-     See [Backbone.Collection#comparator](http://backbonejs.org/#Collection-comparator)
-  */
-  sort: function (column, direction) {
-
-    var collection = this.collection;
-
-    var order;
-    if (direction === "ascending") order = -1;
-    else if (direction === "descending") order = 1;
-    else order = null;
-
-    var comparator = this.makeComparator(column.get("name"), order,
-                                         order ?
-                                         column.sortValue() :
-                                         function (model) {
-                                           return model.cid;
-                                         });
-
-    if (Backbone.PageableCollection &&
-        collection instanceof Backbone.PageableCollection) {
-
-      collection.setSorting(order && column.get("name"), order,
-                            {sortValue: column.sortValue()});
-
-      if (collection.mode == "client") {
-        if (collection.fullCollection.comparator == null) {
-          collection.fullCollection.comparator = comparator;
-        }
-        collection.fullCollection.sort();
-      }
-      else collection.fetch({reset: true});
-    }
-    else {
-      collection.comparator = comparator;
-      collection.sort();
-    }
-
-    this.collection.trigger("backgrid:sort", column, direction, comparator,
-                            this.collection);
-  },
-
-  makeComparator: function (attr, order, func) {
-
-    return function (left, right) {
-      // extract the values from the models
-      var l = func(left, attr), r = func(right, attr), t;
-
-      // if descending order, swap left and right
-      if (order === 1) t = l, l = r, r = t;
-
-      // compare as usual
-      if (l === r) return 0;
-      else if (l < r) return -1;
-      return 1;
-    };
-  },
-
-  /**
-     Renders a header cell with a sorter and a label.
+     Renders a header cell with a sorter, a label, and a class name for this
+     column.
    */
   render: function () {
     this.$el.empty();
-    var $label = $("<a>").text(this.column.get("label"));
-    var sortable = Backgrid.callByNeed(this.column.sortable(), this.column, this.model);
-    if (sortable) $label.append("<b class='sort-caret'></b>");
-    this.$el.append($label);
+    var column = this.column;
+    var sortable = Backgrid.callByNeed(column.sortable(), column, this.collection);
+    var label;
+    if(sortable){
+      label = $("<a>").text(column.get("label")).append("<b class='sort-caret'></b>");
+    } else {
+      label = document.createTextNode(column.get("label"));
+    }
+
+    this.$el.append(label);
+    this.$el.addClass(column.get("name"));
+    this.$el.addClass(column.get("direction"));
     this.delegateEvents();
     return this;
   }
@@ -220,8 +141,6 @@ var HeaderCell = Backgrid.HeaderCell = Backbone.View.extend({
    @extends Backgrid.Row
  */
 var HeaderRow = Backgrid.HeaderRow = Backgrid.Row.extend({
-
-  requiredOptions: ["columns", "collection"],
 
   /**
      Initializer.
@@ -273,8 +192,6 @@ var Header = Backgrid.Header = Backbone.View.extend({
      @throws {TypeError} If options.columns or options.model is undefined.
    */
   initialize: function (options) {
-    Backgrid.requireOptions(options, ["columns", "collection"]);
-
     this.columns = options.columns;
     if (!(this.columns instanceof Backbone.Collection)) {
       this.columns = new Columns(this.columns);

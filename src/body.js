@@ -26,14 +26,13 @@ var Body = Backgrid.Body = Backbone.View.extend({
      @param {Backbone.Collection.<Backgrid.Column>|Array.<Backgrid.Column>|Array.<Object>} options.columns
      Column metadata.
      @param {Backgrid.Row} [options.row=Backgrid.Row] The Row class to use.
-     @param {string} [options.emptyText] The text to display in the empty row.
+     @param {string|function(): string} [options.emptyText] The text to display in the empty row.
 
      @throws {TypeError} If options.columns or options.collection is undefined.
 
      See Backgrid.Row.
   */
   initialize: function (options) {
-    Backgrid.requireOptions(options, ["columns", "collection"]);
 
     this.columns = options.columns;
     if (!(this.columns instanceof Backbone.Collection)) {
@@ -58,6 +57,7 @@ var Body = Backgrid.Body = Backbone.View.extend({
     this.listenTo(collection, "remove", this.removeRow);
     this.listenTo(collection, "sort", this.refresh);
     this.listenTo(collection, "reset", this.refresh);
+    this.listenTo(collection, "backgrid:sort", this.sort);
     this.listenTo(collection, "backgrid:edited", this.moveToNextCell);
   },
 
@@ -67,6 +67,7 @@ var Body = Backgrid.Body = Backbone.View.extend({
         emptyText: this.emptyText,
         columns: this.columns
       }));
+      return true;
     }
   },
 
@@ -103,8 +104,6 @@ var Body = Backgrid.Body = Backbone.View.extend({
       return;
     }
 
-    options = _.extend({render: true}, options || {});
-
     var row = new this.row({
       columns: this.columns,
       model: model
@@ -117,14 +116,14 @@ var Body = Backgrid.Body = Backbone.View.extend({
     var $children = $el.children();
     var $rowEl = row.render().$el;
 
-    if (options.render) {
-      if (index >= $children.length) {
-        $el.append($rowEl);
-      }
-      else {
-        $children.eq(index).before($rowEl);
-      }
+    if (index >= $children.length) {
+      $el.append($rowEl);
     }
+    else {
+      $children.eq(index).before($rowEl);
+    }
+
+    return this;
   },
 
   /**
@@ -156,7 +155,9 @@ var Body = Backgrid.Body = Backbone.View.extend({
     // removeRow() is called directly
     if (!options) {
       this.collection.remove(model, (options = collection));
-      this._unshiftEmptyRowMayBe();
+      if (this._unshiftEmptyRowMayBe()) {
+        this.render();
+      }
       return;
     }
 
@@ -165,7 +166,11 @@ var Body = Backgrid.Body = Backbone.View.extend({
     }
 
     this.rows.splice(options.index, 1);
-    this._unshiftEmptyRowMayBe();
+    if (this._unshiftEmptyRowMayBe()) {
+      this.render();
+    }
+
+    return this;
   },
 
   /**
@@ -230,19 +235,116 @@ var Body = Backgrid.Body = Backbone.View.extend({
   },
 
   /**
+     If the underlying collection is a Backbone.PageableCollection in
+     server-mode or infinite-mode, a page of models is fetched after sorting is
+     done on the server.
+
+     If the underlying collection is a Backbone.PageableCollection in
+     client-mode, or any
+     [Backbone.Collection](http://backbonejs.org/#Collection) instance, sorting
+     is done on the client side. If the collection is an instance of a
+     Backbone.PageableCollection, sorting will be done globally on all the pages
+     and the current page will then be returned.
+
+     Triggers a Backbone `backgrid:sorted` event from the collection when done
+     with the column, direction and a reference to the collection.
+
+     @param {Backgrid.Column|string} column
+     @param {null|"ascending"|"descending"} direction
+
+     See [Backbone.Collection#comparator](http://backbonejs.org/#Collection-comparator)
+  */
+  sort: function (column, direction) {
+
+    if (!_.contains(["ascending", "descending", null], direction)) {
+      throw new RangeError('direction must be one of "ascending", "descending" or `null`');
+    }
+
+    if (_.isString(column)) column = this.columns.findWhere({name: column});
+
+    var collection = this.collection;
+
+    var order;
+    if (direction === "ascending") order = -1;
+    else if (direction === "descending") order = 1;
+    else order = null;
+
+    var comparator = this.makeComparator(column.get("name"), order,
+                                         order ?
+                                         column.sortValue() :
+                                         function (model) {
+                                           return model.cid.replace('c', '') * 1;
+                                         });
+
+    if (Backbone.PageableCollection &&
+        collection instanceof Backbone.PageableCollection) {
+
+      collection.setSorting(order && column.get("name"), order,
+                            {sortValue: column.sortValue()});
+
+      if (collection.fullCollection) {
+        // If order is null, pageable will remove the comparator on both sides,
+        // in this case the default insertion order comparator needs to be
+        // attached to get back to the order before sorting.
+        if (collection.fullCollection.comparator == null) {
+          collection.fullCollection.comparator = comparator;
+        }
+        collection.fullCollection.sort();
+        collection.trigger("backgrid:sorted", column, direction, collection);
+      }
+      else collection.fetch({reset: true, success: function () {
+        collection.trigger("backgrid:sorted", column, direction, collection);
+      }});
+    }
+    else {
+      collection.comparator = comparator;
+      collection.sort();
+      collection.trigger("backgrid:sorted", column, direction, collection);
+    }
+
+    column.set("direction", direction);
+
+    return this;
+  },
+
+  makeComparator: function (attr, order, func) {
+
+    return function (left, right) {
+      // extract the values from the models
+      var l = func(left, attr), r = func(right, attr), t;
+
+      // if descending order, swap left and right
+      if (order === 1) t = l, l = r, r = t;
+
+      // compare as usual
+      if (l === r) return 0;
+      else if (l < r) return -1;
+      return 1;
+    };
+  },
+
+  /**
      Moves focus to the next renderable and editable cell and return the
      currently editing cell to display mode.
+
+     Triggers a `backgrid:next` event on the model with the indices of the row
+     and column the user *intended* to move to, and whether the intended move
+     was going to go out of bounds. Note that *out of bound* always means an
+     attempt to go past the end of the last row.
 
      @param {Backbone.Model} model The originating model
      @param {Backgrid.Column} column The originating model column
      @param {Backgrid.Command} command The Command object constructed from a DOM
-     Event
+     event
   */
   moveToNextCell: function (model, column, command) {
     var i = this.collection.indexOf(model);
     var j = this.columns.indexOf(column);
-    var cell, renderable, editable;
-
+    var cell, renderable, editable, m, n;
+    
+    // return if model being edited in a different grid
+    if (j === -1) return this;
+    
     this.rows[i].cells[j].exitEditMode();
 
     if (command.moveUp() || command.moveDown() || command.moveLeft() ||
@@ -251,30 +353,40 @@ var Body = Backgrid.Body = Backbone.View.extend({
       var maxOffset = l * this.collection.length;
 
       if (command.moveUp() || command.moveDown()) {
-        var row = this.rows[i + (command.moveUp() ? -1 : 1)];
+        m = i + (command.moveUp() ? -1 : 1);
+        var row = this.rows[m];
         if (row) {
           cell = row.cells[j];
           if (Backgrid.callByNeed(cell.column.editable(), cell.column, model)) {
             cell.enterEditMode();
+            model.trigger("backgrid:next", m, j, false);
           }
         }
+        else model.trigger("backgrid:next", m, j, true);
       }
       else if (command.moveLeft() || command.moveRight()) {
         var right = command.moveRight();
         for (var offset = i * l + j + (right ? 1 : -1);
              offset >= 0 && offset < maxOffset;
              right ? offset++ : offset--) {
-          var m = ~~(offset / l);
-          var n = offset - m * l;
+          m = ~~(offset / l);
+          n = offset - m * l;
           cell = this.rows[m].cells[n];
           renderable = Backgrid.callByNeed(cell.column.renderable(), cell.column, cell.model);
           editable = Backgrid.callByNeed(cell.column.editable(), cell.column, model);
           if (renderable && editable) {
             cell.enterEditMode();
+            model.trigger("backgrid:next", m, n, false);
             break;
           }
         }
+
+        if (offset == maxOffset) {
+          model.trigger("backgrid:next", ~~(offset / l), offset - m * l, true);
+        }
       }
     }
+
+    return this;
   }
 });

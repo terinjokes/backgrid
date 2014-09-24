@@ -7,25 +7,6 @@
 */
 describe("A Row", function () {
 
-  it("throws TypeError if a model is not given", function () {
-    expect(function () {
-      new Backgrid.Row({
-        columns: [{
-          name: "name",
-          cell: "string"
-        }]
-      });
-    }).toThrow(new TypeError("'model' is required"));
-  });
-
-  it("throws TypeError if a list of column definitions is not given", function () {
-    expect(function () {
-      new Backgrid.Row({
-        model: new Backbone.Model()
-      });
-    }).toThrow(new TypeError("'columns' is required"));
-  });
-
   it("renders a row of cells using a model's values and a list of column definitions", function () {
     var row = new Backgrid.Row({
       model: new Backbone.Model({
@@ -151,7 +132,7 @@ describe("A Empty Row", function () {
     expect($(row.el).find("td").text()).toEqual(" ");
   });
 
-  it("accepts an option for the text in the row", function() {
+  it("accepts a string option for the text in the row", function() {
     row = new Backgrid.EmptyRow({
       columns: [{
         name: "title"
@@ -159,6 +140,21 @@ describe("A Empty Row", function () {
         name: "author"
       }],
       emptyText: "No data"
+    });
+
+    row.render();
+
+    expect($(row.el).find("td").text()).toEqual("No data");
+  });
+
+  it("accepts a function option for the text in the row", function() {
+    row = new Backgrid.EmptyRow({
+      columns: [{
+        name: "title"
+      }, {
+        name: "author"
+      }],
+      emptyText: function() { return "No data"; }
     });
 
     row.render();

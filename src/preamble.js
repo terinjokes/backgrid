@@ -39,20 +39,11 @@ function lpad(str, length, padstr) {
   return padding + str;
 }
 
-var Backgrid = root.Backgrid = {
+var $ = Backbone.$;
 
-  VERSION: "0.3.0",
+var Backgrid = {
 
   Extension: {},
-
-  requireOptions: function (options, requireOptionKeys) {
-    for (var i = 0; i < requireOptionKeys.length; i++) {
-      var key = requireOptionKeys[i];
-      if (_.isUndefined(options[key])) {
-        throw new TypeError("'" + key  + "' is required");
-      }
-    }
-  },
 
   resolveNameToClass: function (name, suffix) {
     if (_.isString(name)) {
@@ -75,7 +66,7 @@ var Backgrid = root.Backgrid = {
 
     var context = arguments[1];
     var args = [].slice.call(arguments, 2);
-    return value.apply(context, !!(args + '') ? args : void 0);
+    return value.apply(context, !!(args + '') ? args : []);
   }
 
 };
@@ -155,4 +146,3 @@ _.extend(Command.prototype, {
              this.moveRight() || this.save() || this.cancel());
   }
 });
-

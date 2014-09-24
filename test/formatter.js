@@ -102,6 +102,39 @@ describe("A NumberFormatter", function () {
 
 });
 
+describe("A PercentFormatter", function () {
+
+  it(".fromRaw() converts a number to a string by multipling it by a multiplier and appending a symbol", function () {
+    var formatter = new Backgrid.PercentFormatter();
+    expect(formatter.fromRaw(99.8)).toBe("99.80%");
+
+    formatter.multiplier = 100;
+    expect(formatter.fromRaw(0.998)).toBe("99.80%");
+
+    formatter.symbol = "pct";
+    expect(formatter.fromRaw(0.998)).toBe("99.80pct");
+  });
+
+  it(".toRaw() converts a string to a number by removing the symbol and dividing it by the multiplier", function () {
+    var formatter = new Backgrid.PercentFormatter();
+    expect(formatter.toRaw("99.8%")).toBe(99.8);
+    expect(formatter.toRaw("99.8")).toBe(99.8);
+
+    formatter.multiplier = 100;
+    expect(formatter.toRaw("99.8%")).toBe(0.998);
+
+    formatter.symbol = "pct";
+    expect(formatter.toRaw("99.8pct")).toBe(0.998);
+  });
+
+  it(".toRaw() returns undefined for invalid number or percent strings", function () {
+    var formatter = new Backgrid.PercentFormatter();
+    expect(formatter.toRaw("abc")).toBeUndefined();
+    expect(formatter.toRaw("0.1pct")).toBeUndefined();
+  });
+
+});
+
 describe("A DatetimeFormatter", function () {
 
   it("throws Error if includeDate and includeTime are both false", function () {
@@ -124,14 +157,14 @@ describe("A DatetimeFormatter", function () {
     var formatter = new Backgrid.DatetimeFormatter({
       includeTime: false
     });
-    expect(formatter.fromRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe("2012-02-29");
+    expect(formatter.fromRaw("2012-02-29T05:30:00.100Z")).toBe("2012-02-29");
   });
 
   it(".fromRaw() can convert an ISO datetime string to an ISO time string", function () {
     var formatter = new Backgrid.DatetimeFormatter({
       includeDate: false
     });
-    expect(formatter.fromRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe("05:30:00");
+    expect(formatter.fromRaw("2012-02-29T05:30:00.100Z")).toBe("05:30:00");
   });
 
   it(".fromRaw() can convert an ISO datetime string to an ISO time string with milliseconds", function () {
@@ -139,14 +172,14 @@ describe("A DatetimeFormatter", function () {
       includeDate: false,
       includeMilli: true
     });
-    expect(formatter.fromRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe("05:30:00.100");
+    expect(formatter.fromRaw("2012-02-29T05:30:00.100Z")).toBe("05:30:00.100");
   });
 
   it(".fromRaw() can convert an ISO datetime string to an ISO datetime string with milliseconds", function () {
     var formatter = new Backgrid.DatetimeFormatter({
       includeMilli: true
     });
-    expect(formatter.fromRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe("2012-02-29T05:30:00.100Z");
+    expect(formatter.fromRaw("2012-02-29T05:30:00.100Z")).toBe("2012-02-29T05:30:00.100Z");
   });
 
   it(".fromRaw() can convert an ISO date string to an ISO datetime string", function () {
@@ -210,14 +243,14 @@ describe("A DatetimeFormatter", function () {
     var formatter = new Backgrid.DatetimeFormatter({
       includeTime: false
     });
-    expect(formatter.toRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe(undefined);
+    expect(formatter.toRaw("2012-02-29T05:30:00.100Z")).toBe(undefined);
   });
 
   it(".toRaw() returns undefined when converting an ISO datetime string to an ISO time string", function () {
     var formatter = new Backgrid.DatetimeFormatter({
       includeDate: false
     });
-    expect(formatter.toRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe(undefined);
+    expect(formatter.toRaw("2012-02-29T05:30:00.100Z")).toBe(undefined);
   });
 
   it(".toRaw() returns undefined when converting an ISO datetime string to an ISO time string with milliseconds", function () {
@@ -225,19 +258,19 @@ describe("A DatetimeFormatter", function () {
       includeDate: false,
       includeMilli: true
     });
-    expect(formatter.toRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe(undefined);
+    expect(formatter.toRaw("2012-02-29T05:30:00.100Z")).toBe(undefined);
   });
 
   it(".toRaw() can convert an ISO datetime string to an ISO datetime string", function () {
     var formatter = new Backgrid.DatetimeFormatter;
-    expect(formatter.toRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe("2012-02-29T05:30:00Z");
+    expect(formatter.toRaw("2012-02-29T05:30:00.100Z")).toBe("2012-02-29T05:30:00Z");
   });
 
   it(".toRaw() can convert an ISO datetime string to an ISO datetime string with milliseconds", function () {
     var formatter = new Backgrid.DatetimeFormatter({
       includeMilli: true
     });
-    expect(formatter.toRaw(new Date(Date.UTC(2012, 1, 29, 5, 30, 0, 100)).toISOString())).toBe("2012-02-29T05:30:00.100Z");
+    expect(formatter.toRaw("2012-02-29T05:30:00.100Z")).toBe("2012-02-29T05:30:00.100Z");
   });
 
   it(".toRaw() returns undefined when converting an ISO date string to an ISO datetime string", function () {

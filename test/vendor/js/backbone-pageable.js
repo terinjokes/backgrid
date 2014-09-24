@@ -1,6 +1,6 @@
 /*
-  backbone-pageable 1.3.1
-  http://github.com/wyuenho/backbone-pageable
+  backbone-pageable 1.4.5
+  http://github.com/backbone-paginator/backbone-pageable
 
   Copyright (c) 2013 Jimmy Yuen Ho Wong
   Licensed under the MIT @license.
@@ -19,7 +19,7 @@
   // Browser
   else if (typeof _ !== "undefined" && typeof Backbone !== "undefined") {
     var oldPageableCollection = Backbone.PageableCollection;
-    var PageableCollection = Backbone.PageableCollection = factory(_, Backbone);
+    var PageableCollection = factory(_, Backbone);
 
     /**
        __BROWSER ONLY__
@@ -83,12 +83,35 @@
     for (var i = 0, l = kvps.length; i < l; i++) {
       var param = kvps[i];
       kvp = param.split('='), k = kvp[0], v = kvp[1] || true;
-      k = decode(k), ls = params[k];
+      k = decode(k), v = decode(v), ls = params[k];
       if (_isArray(ls)) ls.push(v);
       else if (ls) params[k] = [ls, v];
       else params[k] = v;
     }
     return params;
+  }
+
+  // hack to make sure the whatever event handlers for this event is run
+  // before func is, and the event handlers that func will trigger.
+  function runOnceAtLastHandler (col, event, func) {
+    var eventHandlers = col._events[event];
+    if (eventHandlers && eventHandlers.length) {
+      var lastHandler = eventHandlers[eventHandlers.length - 1];
+      var oldCallback = lastHandler.callback;
+      lastHandler.callback = function () {
+        try {
+          oldCallback.apply(this, arguments);
+          func();
+        }
+        catch (e) {
+          throw e;
+        }
+        finally {
+          lastHandler.callback = oldCallback;
+        }
+      };
+    }
+    else func();
   }
 
   var PARAM_TRIM_RE = /[\s'"]/g;
@@ -102,7 +125,7 @@
      @class Backbone.PageableCollection
      @extends Backbone.Collection
   */
-  var PageableCollection = Backbone.Collection.extend({
+  var PageableCollection = Backbone.PageableCollection = Backbone.Collection.extend({
 
     /**
        The container object to store all pagination states.
@@ -256,7 +279,7 @@
     */
     constructor: function (models, options) {
 
-      Backbone.Collection.apply(this, arguments);
+      BBColProto.constructor.apply(this, arguments);
 
       options = options || {};
 
@@ -299,7 +322,7 @@
         var fullCollection = this.fullCollection;
 
         if (comparator && options.full) {
-          delete this.comparator;
+          this.comparator = null;
           fullCollection.comparator = comparator;
         }
 
@@ -308,6 +331,7 @@
         // make sure the models in the current page and full collection have the
         // same references
         if (models && !_isEmpty(models)) {
+          this.reset([].slice.call(models), _extend({silent: true}, options));
           this.getPage(state.currentPage);
           models.splice.apply(models, [0, models.length].concat(this.models));
         }
@@ -401,7 +425,11 @@
               fullIndex;
           }
 
-          ++state.totalRecords;
+          if (!options.onRemove) {
+            ++state.totalRecords;
+            delete options.onRemove;
+          }
+
           pageCol.state = pageCol._checkState(state);
 
           if (colToAdd) {
@@ -412,22 +440,9 @@
               pageCol.at(pageSize) :
               null;
             if (modelToRemove) {
-              var addHandlers = collection._events.add || [],
-              popOptions = {onAdd: true};
-              if (addHandlers.length) {
-                var lastAddHandler = addHandlers[addHandlers.length - 1];
-                var oldCallback = lastAddHandler.callback;
-                lastAddHandler.callback = function () {
-                  try {
-                    oldCallback.apply(this, arguments);
-                    pageCol.remove(modelToRemove, popOptions);
-                  }
-                  finally {
-                    lastAddHandler.callback = oldCallback;
-                  }
-                };
-              }
-              else pageCol.remove(modelToRemove, popOptions);
+              runOnceAtLastHandler(collection, event, function () {
+                pageCol.remove(modelToRemove, {onAdd: true});
+              });
             }
           }
         }
@@ -442,20 +457,27 @@
             }
             else {
               var totalPages = state.totalPages = ceil(state.totalRecords / pageSize);
-              state.lastPage = firstPage === 0 ? totalPages - 1 : totalPages;
+              state.lastPage = firstPage === 0 ? totalPages - 1 : totalPages || firstPage;
               if (state.currentPage > totalPages) state.currentPage = state.lastPage;
             }
             pageCol.state = pageCol._checkState(state);
 
             var nextModel, removedIndex = options.index;
             if (collection == pageCol) {
-              if (nextModel = fullCol.at(pageEnd)) pageCol.push(nextModel);
+              if (nextModel = fullCol.at(pageEnd)) {
+                runOnceAtLastHandler(pageCol, event, function () {
+                  pageCol.push(nextModel, {onRemove: true});
+                });
+              }
               fullCol.remove(model);
             }
             else if (removedIndex >= pageStart && removedIndex < pageEnd) {
+              if (nextModel = fullCol.at(pageEnd - 1)) {
+                runOnceAtLastHandler(pageCol, event, function() {
+                  pageCol.push(nextModel, {onRemove: true});
+                });
+              }
               pageCol.remove(model);
-              nextModel = fullCol.at(currentPage * (pageSize + removedIndex));
-              if (nextModel) pageCol.push(nextModel);
             }
           }
           else delete options.onAdd;
@@ -466,13 +488,13 @@
           collection = model;
 
           // Reset that's not a result of getPage
-          if (collection === pageCol && options.from == null &&
+          if (collection == pageCol && options.from == null &&
               options.to == null) {
             var head = fullCol.models.slice(0, pageStart);
             var tail = fullCol.models.slice(pageStart + pageCol.models.length);
             fullCol.reset(head.concat(pageCol.models).concat(tail), options);
           }
-          else if (collection === fullCol) {
+          else if (collection == fullCol) {
             if (!(state.totalRecords = fullCol.models.length)) {
               state.totalRecords = null;
               state.totalPages = null;
@@ -551,7 +573,7 @@
           throw new RangeError("`firstPage must be 0 or 1`");
         }
 
-        state.lastPage = firstPage === 0 ? max(0, totalPages - 1) : totalPages;
+        state.lastPage = firstPage === 0 ? max(0, totalPages - 1) : totalPages || firstPage;
 
         if (mode == "infinite") {
           if (!links[currentPage + '']) {
@@ -615,12 +637,14 @@
 
       var state = this.state;
       var totalPages = ceil(state.totalRecords / pageSize);
-      var currentPage = max(state.firstPage,
-                            floor(totalPages *
-                                  (state.firstPage ?
-                                   state.currentPage :
-                                   state.currentPage + 1) /
-                                  state.totalPages));
+      var currentPage = totalPages ?
+        max(state.firstPage,
+            floor(totalPages *
+                  (state.firstPage ?
+                   state.currentPage :
+                   state.currentPage + 1) /
+                  state.totalPages)) :
+        state.firstPage;
 
       state = this.state = this._checkState(_extend({}, state, {
         pageSize: pageSize,
@@ -679,7 +703,7 @@
       var fullCollection = this.fullCollection;
       var handlers = this._handlers = this._handlers || {}, handler;
       if (mode != "server" && !fullCollection) {
-        fullCollection = this._makeFullCollection(options.models || []);
+        fullCollection = this._makeFullCollection(options.models || [], options);
         fullCollection.pageableCollection = this;
         this.fullCollection = fullCollection;
         var allHandler = this._makeCollectionEventHandler(this, fullCollection);
@@ -803,8 +827,8 @@
        can be forced in client mode before resetting the current page. Under
        infinite mode, if the index is less than the current page, a reset is
        done as in client mode. If the index is greater than the current page
-       number, a fetch is made with the results **appended** to
-       #fullCollection. The current page will then be reset after fetching.
+       number, a fetch is made with the results **appended** to #fullCollection.
+       The current page will then be reset after fetching.
 
        @param {number|string} index The page index to go to, or the page name to
        look up from #links in infinite mode.
@@ -854,7 +878,8 @@
         [];
       if ((mode == "client" || (mode == "infinite" && !_isEmpty(pageModels))) &&
           !options.fetch) {
-        return this.reset(pageModels, _omit(options, "fetch"));
+        this.reset(pageModels, _omit(options, "fetch"));
+        return this;
       }
 
       if (mode == "infinite") options.url = this.links[pageNum];
@@ -919,16 +944,10 @@
        links from them for infinite paging.
 
        This default implementation parses the RFC 5988 `Link` header and extract
-       3 links from it - `first`, `prev`, `next`. If a `previous` link is found,
-       it will be found in the `prev` key in the returned object hash. Any
-       subclasses overriding this method __must__ return an object hash having
-       only the keys above. If `first` is missing, the collection's default URL
-       is assumed to be the `first` URL. If `prev` or `next` is missing, it is
-       assumed to be `null`. An empty object hash must be returned if there are
-       no links found. If either the response or the header contains information
-       pertaining to the total number of records on the server,
-       #state.totalRecords must be set to that number. The default
-       implementation uses the `last` link from the header to calculate it.
+       3 links from it - `first`, `prev`, `next`. Any subclasses overriding this
+       method __must__ return an object hash having only the keys
+       above. However, simply returning a `next` link or an empty hash if there
+       are no more links should be enough for most implementations.
 
        @param {*} resp The deserialized response body.
        @param {Object} [options]
@@ -940,7 +959,7 @@
       var links = {};
       var linkHeader = options.xhr.getResponseHeader("Link");
       if (linkHeader) {
-        var relations = ["first", "prev", "previous", "next", "last"];
+        var relations = ["first", "prev", "next"];
         _each(linkHeader.split(","), function (linkValue) {
           var linkParts = linkValue.split(";");
           var url = linkParts[0].replace(URL_TRIM_RE, '');
@@ -949,39 +968,10 @@
             var paramParts = param.split("=");
             var key = paramParts[0].replace(PARAM_TRIM_RE, '');
             var value = paramParts[1].replace(PARAM_TRIM_RE, '');
-            if (key == "rel" && _contains(relations, value)) {
-              if (value == "previous") links.prev = url;
-              else links[value] = url;
-            }
+            if (key == "rel" && _contains(relations, value)) links[value] = url;
           });
         });
-
-        var last = links.last || '', qsi, qs;
-        if (qs = (qsi = last.indexOf('?')) ? last.slice(qsi + 1) : '') {
-          var params = queryStringToParams(qs);
-
-          var state = _clone(this.state);
-          var queryParams = this.queryParams;
-          var pageSize = state.pageSize;
-
-          var totalRecords = params[queryParams.totalRecords] * 1;
-          var pageNum = params[queryParams.currentPage] * 1;
-          var totalPages = params[queryParams.totalPages];
-
-          if (!totalRecords) {
-            if (pageNum) totalRecords = (state.firstPage === 0 ?
-                                         pageNum + 1 :
-                                         pageNum) * pageSize;
-            else if (totalPages) totalRecords = totalPages * pageSize;
-          }
-
-          if (totalRecords) state.totalRecords = totalRecords;
-
-          this.state = this._checkState(state);
-        }
       }
-
-      delete links.last;
 
       return links;
     },
@@ -1026,7 +1016,8 @@
     },
 
     /**
-       Parse server response for server pagination state updates.
+       Parse server response for server pagination state updates. Not applicable
+       under infinite mode.
 
        This default implementation first checks whether the response has any
        state object as documented in #parse. If it exists, a state object is
@@ -1110,7 +1101,7 @@
        then reset.
 
        The query string is constructed by translating the current pagination
-       state to your server API query parameter using #queryParams.  The current
+       state to your server API query parameter using #queryParams. The current
        page will reset after fetch.
 
        @param {Object} [options] Accepts all
@@ -1175,11 +1166,8 @@
         if (v != null) data[kvp[0]] = v;
       }
 
-      var fullCol = this.fullCollection, links = this.links;
-
       if (mode != "server") {
-
-        var self = this;
+        var self = this, fullCol = this.fullCollection;
         var success = options.success;
         options.success = function (col, resp, opts) {
 
@@ -1189,35 +1177,18 @@
           else opts.silent = options.silent;
 
           var models = col.models;
-          var currentPage = state.currentPage;
-
           if (mode == "client") fullCol.reset(models, opts);
-          else if (links[currentPage]) { // refetching a page
-            var pageSize = state.pageSize;
-            var pageStart = (state.firstPage === 0 ?
-                             currentPage :
-                             currentPage - 1) * pageSize;
-            var fullModels = fullCol.models;
-            var head = fullModels.slice(0, pageStart);
-            var tail = fullModels.slice(pageStart + pageSize);
-            fullModels = head.concat(models).concat(tail);
-            var updateFunc = fullCol.set || fullCol.update;
-            // Must silent update and trigger reset later because the event
-            // sychronization handler is temporarily taken out during either add
-            // or remove, which Collection#set does, so the pageable collection
-            // will be out of sync if not silenced because adding will trigger
-            // the sychonization event handler
-            updateFunc.call(fullCol, fullModels, _extend({silent: true}, opts));
-            fullCol.trigger("reset", fullCol, opts);
+          else {
+            fullCol.add(models, _extend({at: fullCol.length},
+                                        _extend(opts, {parse: false})));
+            self.trigger("reset", self, opts);
           }
-          // fetching new page
-          else fullCol.add(models, _extend({at: fullCol.length}, opts));
 
           if (success) success(col, resp, opts);
         };
 
         // silent the first reset from backbone
-        return BBColProto.fetch.call(self, _extend({}, options, {silent: true}));
+        return BBColProto.fetch.call(this, _extend({}, options, {silent: true}));
       }
 
       return BBColProto.fetch.call(this, options);
@@ -1332,8 +1303,8 @@
         this.comparator = comparator;
       }
 
-      if (delComp) delete this.comparator;
-      if (delFullComp && fullCollection) delete fullCollection.comparator;
+      if (delComp) this.comparator = null;
+      if (delFullComp && fullCollection) fullCollection.comparator = null;
 
       return this;
     }

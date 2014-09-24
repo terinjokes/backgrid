@@ -5,22 +5,6 @@
   Copyright (c) 2013 Jimmy Yuen Ho Wong and contributors
   Licensed under the MIT license.
 */
-describe("Backgrid#requireOptions", function () {
-
-  it("throws TypeError if a required option is not found", function () {
-    expect(function () {
-      Backgrid.requireOptions({}, ['foo']);
-    }).toThrow(new TypeError("'foo' is required"));
-  });
-
-  it("does not throw a TypeError if a required option is found", function () {
-    expect(function () {
-      Backgrid.requireOptions({foo: 1}, ['foo']);
-    }).not.toThrow(new TypeError("'foo' is required"));
-  });
-
-});
-
 describe("Backgrid#resolveNameToClass", function () {
 
   it("will return a reference to a Backgrid or a Backgrid.Extension object from a dasherized string and a suffix", function () {
@@ -52,7 +36,7 @@ describe("Backgrid#callByNeed", function () {
     expect(Backgrid.callByNeed(function () { return 1; })).toBe(1);
   });
 
-  it("will use the second parameter as the context when evaluation the first parameter as a function", function () {
+  it("will use the second parameter as the context when evaluating the first parameter as a function", function () {
     expect(Backgrid.callByNeed(function () { return this[0]; }, [1,2,3])).toBe(1);
   });
 

@@ -22,17 +22,21 @@ functionalities easy.
 - Highly modular and customizable. Components are just simple Backbone View classes, customization is easy if you already know Backbone.
 - Lightweight. Extra features are separated into extensions, which keeps the bloat away.
 - Good documentation.
+- Well tested. Comes with [100s of test cases](http://wyuenho.github.io/backgrid/test/).
 
-## Supported browsers:
+## Supported browsers [[1]](#note-1):
 
-- Internet Explorer 8+ [[1]](#note-1)
+- Internet Explorer 8 [[2]](#note-2)
+- Internet Exploror 9+
 - Chrome 4+
 - Safari 4+
 - Firefox 4+
+- Opera 9+
 
 ### Notes:
 
-<span id="note-1">[1]</span>: Both the desktop and mobile versions of the above browsers are supported.
+- <span id="note-1">[1]</span>: Both the desktop and mobile versions of the above browsers are supported.
+- <span id="note-2">[2]</span>: With the exception of the Filter extension's search icon CSS.
 
 ## Example
 
@@ -57,7 +61,7 @@ var columns = [{
   // Defines a cell type, and ID is displayed as an integer without the ',' separating 1000s.
   cell: Backgrid.IntegerCell.extend({
     orderSeparator: ''
-  }1)
+  })
 }, {
   name: "name",
   label: "Name",
@@ -93,12 +97,17 @@ $("#example-1-result").append(grid.render().el);
 
 # Result:
 
-Take a look [here](http://backgridjs.com/#examples).
+Take a look [here](http://backgridjs.com/index.html#basic-example).
 
 ## More Examples
 
 Are you kidding me? This is a README file. Go to the [documentation](http://backgridjs.com/
 "Backbone.js Documentation") to find out more :)
+
+## Commercial Support
+
+If there's a feature that you would like me to implement or a bug you'd like me
+to fix, you can contact me at this [email address](mailto:wyuenho@gmail.com).
 
 ## License
 Copyright (c) 2013 Jimmy Yuen Ho Wong  

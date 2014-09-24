@@ -36,27 +36,7 @@ describe("A Grid", function () {
     });
   });
 
-  it("throws TypeError if a list of column definition is not given", function () {
-    expect(function () {
-      new Backgrid.Grid({
-        collection: books
-      });
-    }).toThrow(new TypeError("'columns' is required"));
-  });
-
-  it("throws TypeError if a collection is not given", function () {
-    expect(function () {
-      new Backgrid.Grid({
-        columns: [{
-          name: "title",
-          cell: "string"
-        }]
-      });
-    }).toThrow(new TypeError("'collection' is required"));
-  });
-
-  it("renders a table with a header, body and an optional footer section", function () {
-
+  it("renders a table with a body, optional header, and an optional footer section", function () {
     spyOn(grid, "trigger");
     spyOn(grid.header, "render").andCallThrough();
     spyOn(grid.footer, "render").andCallThrough();
@@ -109,17 +89,71 @@ describe("A Grid", function () {
     expect(grid.remove().constructor).toBe(Backgrid.Grid);
   });
 
+  it("will delegate insertRow, removeRow and sort to the body", function () {
+    spyOn(grid.body, "insertRow").andCallThrough();
+    spyOn(grid.body, "removeRow").andCallThrough();
+    spyOn(grid.body, "sort").andCallThrough();
+    grid.insertRow({});
+    expect(grid.body.insertRow).toHaveBeenCalledWith({});
+    var last = grid.collection.last();
+    grid.removeRow(last);
+    expect(grid.body.removeRow).toHaveBeenCalledWith(last);
+    grid.sort("title", "descending");
+    expect(grid.body.sort).toHaveBeenCalledWith("title", "descending");
+  });
+
+  it("will delegate to columns.add and columns.remove from insertColumn and removeColumn", function () {
+    spyOn(grid.columns, "add").andCallThrough();
+    spyOn(grid.columns, "remove").andCallThrough();
+    grid.insertColumn({name: "id", cell: "integer"});
+    expect(grid.columns.add).toHaveBeenCalledWith({name: "id", cell: "integer"});
+    var col = grid.columns.last();
+    grid.removeColumn(col);
+    expect(grid.columns.remove).toHaveBeenCalledWith(col);
+  });
+
   it("will refresh on columns reset", function () {
     grid.render();
     grid.columns.reset([{
       name: "id",
       cell: "integer"
     }]);
-    expect(grid.el.innerHTML).toBe('<thead><tr><th class="editable sortable renderable"><a>id<b class="sort-caret"></b></a></th></tr></thead>' +
-                                   '<tfoot></tfoot>' +
-                                   '<tbody><tr><td class="integer-cell editable sortable renderable">1</td></tr>' +
-                                   '<tr><td class="integer-cell editable sortable renderable">2</td></tr>' +
-                                   '<tr><td class="integer-cell editable sortable renderable">3</td></tr></tbody>');
+
+    var thead = grid.el.childNodes[0];
+    expect(thead.tagName == "THEAD").toBe(true);
+    expect($(thead).find("tr").length).toBe(1);
+    expect($(thead).find("tr > th.editable.sortable.renderable.id > a > b.sort-caret").length).toBe(1);
+    expect($(thead).find("tr > th.editable.sortable.renderable.id > a").text()).toBe("id");
+
+    var tfoot = grid.el.childNodes[1];
+    expect(tfoot.tagName == "TFOOT").toBe(true);
+    expect(tfoot.childNodes.length).toBe(0);
+
+    var tbody = grid.el.lastChild;
+    expect(tbody.tagName == "TBODY").toBe(true);
+    expect($(tbody).find("tr").length).toBe(3);
+    expect($(tbody).find("tr:nth-child(1) > td.integer-cell.editable.sortable.renderable").length).toBe(1);
+    expect($(tbody).find("tr:nth-child(1) > td.integer-cell.editable.sortable.renderable").text()).toBe("1");
+    expect($(tbody).find("tr:nth-child(2) > td.integer-cell.editable.sortable.renderable").length).toBe(1);
+    expect($(tbody).find("tr:nth-child(2) > td.integer-cell.editable.sortable.renderable").text()).toBe("2");
+    expect($(tbody).find("tr:nth-child(3) > td.integer-cell.editable.sortable.renderable").length).toBe(1);
+    expect($(tbody).find("tr:nth-child(3) > td.integer-cell.editable.sortable.renderable").text()).toBe("3");
   });
 
+  it("will inherit the constructor's columns", function () {
+    var columns = [{
+      name: "title",
+      cell: "string"
+    }];
+
+    var CustomGrid = Backgrid.Grid.extend({
+      columns: columns
+      , className: 'backgrid customBackgrid'
+    });
+
+    var customGrid = new CustomGrid({collection: books});
+
+    expect(customGrid.columns.models.length).toBe(1);
+    expect(customGrid.columns.at(0).get("name")).toBe("title");
+  });
 });

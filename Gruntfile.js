@@ -21,41 +21,43 @@ module.exports = function (grunt) {
         force: true
       },
       lib: [
-        "lib/**/*"
+        "lib/*.js",
+        "lib/*.css"
       ],
       api: [
         "api/**/*"
       ],
       default: [
         "api/**/*",
-        "lib/**/*"
+        "lib/*.js",
+        "lib/*.css"
       ]
     },
+
     concat: {
       backgrid: {
         options: {
-          banner: '/*!\n  <%= pkg.name %>\n' +
+          banner: '/*!\n  <%= pkg.name %> <%= pkg.version %>\n' +
             '  <%= pkg.repository.url %>\n\n' +
             '  Copyright (c) <%= grunt.template.today("yyyy") %> <%= pkg.author %>\n' +
             '  Licensed under the MIT license.\n' +
             '*/\n\n' +
-            '(function (factory) {\n\n' +
-            '  // CommonJS\n' +
-            '  if (typeof exports == "object") {\n' +
-            '    var root = {}\n' +
-            '    factory(root,\n' +
-            '            require("underscore"),\n' +
-            '            require("jquery2"),\n' +
-            '            require("backbone"));\n' +
-            '    module.exports = root.Backgrid;\n' +
-            '  }\n' +
-            '  // Browser\n' +
-            '  else if (typeof _ !== "undefined" &&\n' +
-            '    typeof Backbone !== "undefined") {\n' +
-            '    factory(window, _, jQuery, Backbone);\n' +
-            '  }\n' +
-            '}(function (root, _, $, Backbone) {\n\n  \"use strict\";\n',
-          footer: "}));"
+            '(function (root, factory) {\n\n' +
+            '  if (typeof define === "function" && define.amd) {\n' +
+            '    // AMD (+ global for extensions)\n' +
+            '    define(["underscore", "backbone"], function (_, Backbone) {\n' +
+            '      return (root.Backgrid = factory(_, Backbone));\n' +
+            '    });\n' +
+            '  } else if (typeof exports === "object") {\n' +
+            '    // CommonJS\n' +
+            '    module.exports = factory(require("underscore"), require("backbone"));\n' +
+            '  } else {\n' +
+            '    // Browser\n' +
+            '    root.Backgrid = factory(root._, root.Backbone);\n' +
+            '  }' +
+            '}(this, function (_, Backbone) {\n\n  "use strict";\n\n',
+          footer: '  return Backgrid;\n' +
+            '}));'
         },
         src: [
           "src/preamble.js",
@@ -71,6 +73,7 @@ module.exports = function (grunt) {
         dest: "lib/backgrid.js"
       }
     },
+
     connect: {
       server: {
         options: {
@@ -78,6 +81,7 @@ module.exports = function (grunt) {
         }
       }
     },
+
     jasmine: {
       test: {
         version: "1.3.1",
@@ -106,16 +110,17 @@ module.exports = function (grunt) {
               }
             }
           },
-          helpers: "assets/js/jasmine-html.js",
+          helpers: "vendor/js/jasmine-html.js",
           vendor: [
-            "assets/js/jquery.js",
-            "assets/js/underscore.js",
-            "assets/js/backbone.js",
-            "assets/js/backbone-pageable.js"
+            "test/vendor/js/jquery.js",
+            "test/vendor/js/underscore.js",
+            "test/vendor/js/backbone.js",
+            "test/vendor/js/backbone-pageable.js"
           ]
         }
       }
     },
+
     jsduck: {
       main: {
         src: ["src"],
@@ -142,6 +147,7 @@ module.exports = function (grunt) {
         }
       }
     },
+
     recess: {
       csslint: {
         options: {
@@ -160,6 +166,7 @@ module.exports = function (grunt) {
         }
       }
     },
+
     uglify: {
       options: {
         mangle: true,
@@ -171,12 +178,20 @@ module.exports = function (grunt) {
           "lib/backgrid.min.js": ["./lib/backgrid.js"]
         }
       }
+    },
+
+    watch: {
+      default: {
+        files: ["src/**/*.*"],
+        tasks: ["dist"]
+      }
     }
   });
 
   grunt.loadNpmTasks("grunt-contrib-clean");
   grunt.loadNpmTasks("grunt-contrib-concat");
   grunt.loadNpmTasks("grunt-contrib-uglify");
+  grunt.loadNpmTasks("grunt-contrib-watch");
   grunt.loadNpmTasks("grunt-recess");
   grunt.loadNpmTasks("grunt-jsduck");
   grunt.loadNpmTasks("grunt-contrib-jasmine");

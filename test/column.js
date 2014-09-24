@@ -7,22 +7,6 @@
 */
 describe("A Column", function () {
 
-  it("throws TypeError when initialized without a cell", function () {
-    expect(function () {
-      new Backgrid.Column({
-        name: "name"
-      });
-    }).toThrow(new TypeError("'cell' is required"));
-  });
-
-  it("throws TypeError when initialized without a name", function () {
-    expect(function () {
-      new Backgrid.Column({
-        cell: 1
-      });
-    }).toThrow(new TypeError("'name' is required"));
-  });
-
   it("must be initialized with at least name and cell", function () {
     expect(function () {
       new Backgrid.Column({
@@ -64,7 +48,7 @@ describe("A Column", function () {
     expect(col.sortValue()).toBe(mySortValue);
   });
 
-  it("sortable can be a string or a boolean", function () {
+  it("sortable can be a string or a boolean or a function", function () {
     var Col = Backgrid.Column.extend({
       mySortable: function () {}
     });
@@ -84,9 +68,17 @@ describe("A Column", function () {
     });
 
     expect(col.sortable()).toBe(false);
+
+    col = new Col({
+      name: "name",
+      cell: "string",
+      sortable: function () { return false; }
+    });
+
+    expect(col.sortable()).toBe(col.get("sortable"));
   });
 
-  it("editable can be a string or a boolean", function () {
+  it("editable can be a string or a boolean or a function", function () {
     var Col = Backgrid.Column.extend({
       myEditable: function () {}
     });
@@ -106,9 +98,17 @@ describe("A Column", function () {
     });
 
     expect(col.editable()).toBe(false);
+
+    col = new Col({
+      name: "name",
+      cell: "string",
+      editable: function () { return false; }
+    });
+
+    expect(col.editable()).toBe(col.get("editable"));
   });
 
-  it("renderable can be a string or a boolean", function () {
+  it("renderable can be a string or a boolean or a function", function () {
     var Col = Backgrid.Column.extend({
       myRenderable: function () {}
     });
@@ -128,6 +128,14 @@ describe("A Column", function () {
     });
 
     expect(col.renderable()).toBe(false);
+
+    col = new Col({
+      name: "name",
+      cell: "string",
+      renderable: function () { return false; }
+    });
+
+    expect(col.renderable()).toBe(col.get("renderable"));
   });
 
 });

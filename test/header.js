@@ -7,25 +7,6 @@
 */
 describe("A HeaderCell", function () {
 
-  it("throws TypeError if a column is not given", function () {
-    expect(function () {
-      new Backgrid.HeaderCell({
-        collection: new Backbone.Collection()
-      });
-    }).toThrow(new TypeError("'column' is required"));
-  });
-
-  it("throws TypeError if a collection is not given", function () {
-    expect(function () {
-      new Backgrid.HeaderCell({
-        column: [{
-          name: "name",
-          cell: "string"
-        }]
-      });
-    }).toThrow(new TypeError("'collection' is required"));
-  });
-
   var col;
   var cell;
   beforeEach(function () {
@@ -42,7 +23,7 @@ describe("A HeaderCell", function () {
     cell.render();
   });
 
-  it("renders a table header cell with an anchor wrapping the label text and an optional sort caret", function () {
+  it("renders a table header cell with the label text and an optional anchor with sort-caret", function () {
     expect(cell.el.tagName).toBe("TH");
     expect(cell.$el.find("a").text()).toBe("id");
     expect(cell.$el.find(".sort-caret").length).toBe(1);
@@ -50,162 +31,218 @@ describe("A HeaderCell", function () {
     cell.column.set("sortable", false);
     cell.render();
     expect(cell.el.tagName).toBe("TH");
-    expect(cell.$el.find("a").text()).toBe("id");
+    expect(cell.$el.text()).toBe("id");
     expect(cell.$el.find(".sort-caret").length).toBe(0);
   });
 
-  it("sorts the underlying collection in ascending order upon clicking the sort caret once", function () {
-    cell.$el.find("a").click();
-    expect(cell.collection.toJSON()).toEqual([{id: 1}, {id: 2}, {id: 3}]);
-  });
-
-  it("sorts the underlying collection in descending order upon clicking the sort caret twice", function () {
-    cell.$el.find("a").click().click();
-    expect(cell.direction()).toBe("descending");
-    expect(cell.collection.toJSON()).toEqual([{id: 3}, {id: 2}, {id: 1}]);
-  });
-
-  it("sorts the underlying collection in default order upon clicking the sort caret thrice", function () {
-    cell.$el.find("a").click().click().click();
-    expect(cell.direction()).toBeNull();
-    expect(cell.collection.toJSON()).toEqual([{id: 2}, {id: 1}, {id: 3}]);
-  });
-
-  it("with the sortType to `toggle`, sorts the underlying collection in ascending order upon clicking the sort caret once", function(){
-    cell.column.set("sortType", "toggle");
-    cell.$el.find("a").click();
-    expect(cell.direction()).toBe("ascending");
-    expect(cell.collection.toJSON()).toEqual([{id: 1}, {id: 2}, {id: 3}]);
-  });
-
-  it("with the sortType to `toggle`, sorts the underlying collection in descending order upon clicking the sort caret twice", function(){
-    cell.column.set("sortType", "toggle");
-    cell.$el.find("a").click().click();
-    expect(cell.direction()).toBe("descending");
-    expect(cell.collection.toJSON()).toEqual([{id: 3}, {id: 2}, {id: 1}]);
-  });
-
-  it("with the sortType to `toggle`, sorts the underlying collection back in ascending order upon clicking the sort caret thrice", function(){
-    cell.column.set("sortType", "toggle");
-    cell.$el.find("a").click().click().click();
-    expect(cell.direction()).toBe("ascending");
-    expect(cell.collection.toJSON()).toEqual([{id: 1}, {id: 2}, {id: 3}]);
-  });
-
-  it("sorts the underlying collection using a custom value extractor upon clicking the sort caret", function() {
-
-    var sortValue = function (model, attr) {
-      return 3 - model.get(attr);
+  it("adds an editable, sortable and a renderable class to the cell if these column attributes are true", function () {
+    var column = {
+      name: "title",
+      cell: "string"
     };
 
     cell = new Backgrid.HeaderCell({
-      collection: col,
+      column: column,
+      collection: col
+    });
+
+    expect(cell.$el.hasClass("editable")).toBe(true);
+    expect(cell.$el.hasClass("sortable")).toBe(true);
+    expect(cell.$el.hasClass("renderable")).toBe(true);
+
+    cell.column.set("editable", false);
+    expect(cell.$el.hasClass("editable")).toBe(false);
+
+    cell.column.set("sortable", false);
+    expect(cell.$el.hasClass("sortable")).toBe(false);
+
+    cell.column.set("renderable", false);
+    expect(cell.$el.hasClass("renderable")).toBe(false);
+
+    var TrueCol = Backgrid.Column.extend({
+      mySortable: function () { return true; },
+      myRenderable: function () { return true; },
+      myEditable: function () { return true; }
+    });
+
+    var FalseCol = Backgrid.Column.extend({
+      mySortable: function () { return false; },
+      myRenderable: function () { return false; },
+      myEditable: function () { return false; }
+    });
+
+    column = new TrueCol({
+      name: "title",
+      cell: "string",
+      sortable: "mySortable",
+      renderable: "myRenderable",
+      editable: "myEditable"
+    });
+
+    cell = new Backgrid.HeaderCell({
+      column: column,
+      collection: col
+    });
+
+    expect(cell.$el.hasClass("editable")).toBe(true);
+    expect(cell.$el.hasClass("sortable")).toBe(true);
+    expect(cell.$el.hasClass("renderable")).toBe(true);
+
+    column = new FalseCol({
+      name: "title",
+      cell: "string",
+      sortable: "mySortable",
+      renderable: "myRenderable",
+      editable: "myEditable"
+    });
+
+    cell = new Backgrid.HeaderCell({
+      column: column,
+      collection: col
+    });
+
+    expect(cell.$el.hasClass("editable")).toBe(false);
+    expect(cell.$el.hasClass("sortable")).toBe(false);
+    expect(cell.$el.hasClass("renderable")).toBe(false);
+
+    column = new Backgrid.Column({
+      name: "title",
+      cell: "string",
+      sortable: function () { return true; },
+      editable: function () { return true; },
+      renderable: function () { return true; }
+    });
+
+    cell = new Backgrid.HeaderCell({
+      column: column,
+      collection: col
+    });
+
+    expect(cell.$el.hasClass("editable")).toBe(true);
+    expect(cell.$el.hasClass("sortable")).toBe(true);
+    expect(cell.$el.hasClass("renderable")).toBe(true);
+  });
+
+  it("will rerender with the column name and/or label changes", function () {
+    expect(cell.$el.find("a").text(), "id");
+    expect(cell.$el.hasClass("id"), true);
+
+    cell.column.set("name", "name");
+    expect(cell.$el.find("name"), true);
+    expect(cell.$el.hasClass("name"), true);
+
+    cell.column.set("label", "Name");
+    expect(cell.$el.find("a").text(), "Name");
+    expect(cell.$el.hasClass("Name"), true);
+  });
+
+  it("will put a class indicating the sorting direction if `direction` is set in the column", function () {
+    cell = new Backgrid.HeaderCell({
       column: {
         name: "id",
         cell: "integer",
-        sortValue: sortValue
+        direction: "descending"
       },
-    }).render();
-
-    cell.$el.find("a").click();
-    expect(cell.collection.toJSON()).toEqual([{id: 3}, {id: 2}, {id: 1}]);
-  });
-
-  it("can sort on a server-mode Backbone.PageableCollection", function () {
-
-    var oldAjax = $.ajax;
-    $.ajax = function (settings) {
-      settings.success([{"total_entries": 3}, [{id: 2}, {id: 1}]]);
-    };
-
-    var books = new Backbone.PageableCollection([{id: 1}, {id: 2}], {
-      url: "test-headercell",
-      state: {
-        pageSize: 3
-      }
-    });
-
-    cell = new Backgrid.HeaderCell({
-      column: {
-        name: "title",
-        cell: "string"
-      },
-      collection: books
+      collection: col
     });
 
     cell.render();
 
-    expect(cell.collection.at(0).get("id")).toBe(1);
-    expect(cell.collection.at(1).get("id")).toBe(2);
-
-    cell.$el.find("a").click().click();
-
-    expect(cell.collection.at(0).get("id")).toBe(2);
-    expect(cell.collection.at(1).get("id")).toBe(1);
-
-    $.ajax = oldAjax;
+    expect(cell.el.tagName).toBe("TH");
+    expect(cell.$el.find("a").text()).toBe("id");
+    expect(cell.$el.find(".sort-caret").length).toBe(1);
+    expect(cell.$el.hasClass("descending")).toBe(true);
   });
 
-  it("can sort on a client-mode Backbone.PageableCollection", function () {
+  it("triggers `backgrid:sort` with the column and direction set to 'ascending' if the column's direction is not set", function () {
+    var column, direction;
+    cell.collection.on("backgrid:sort", function (col, dir) { column = col; direction = dir; });
+    cell.$el.find("a").click();
+    expect(column).toBe(cell.column);
+    expect(direction).toBe("ascending");
+  });
 
-    var books = new Backbone.PageableCollection([{
-      title: "Alice's Adventures in Wonderland"
-    }, {
-      title: "A Tale of Two Cities"
-    }, {
-      title: "The Catcher in the Rye"
-    }], {
-      state: {
-        pageSize: 1
-      },
+  it("triggers `backgrid:sort` with the column and direction set to 'descending' if the column's direction is set to 'ascending'", function () {
+    var column, direction;
+    cell.collection.on("backgrid:sort", function (col, dir) { column = col; direction = dir; });
+    cell.column.set("direction", "ascending");
+    cell.$el.find("a").click();
+    expect(column).toBe(cell.column);
+    expect(direction).toBe("descending");
+  });
+
+  it("triggers `backgrid:sort` with the column and direction set to `null` if the column's direction is set to 'descending'", function () {
+    var column, direction;
+    cell.collection.on("backgrid:sort", function (col, dir) { column = col; direction = dir; });
+    cell.column.set("direction", "descending");
+    cell.$el.find("a").click();
+    expect(column).toBe(cell.column);
+    expect(direction).toBeNull();
+  });
+
+  it("will set the column to the correct direction when `change:direction` is triggered from the column", function () {
+    cell.column.set("direction", "ascending");
+    expect(cell.$el.hasClass("ascending")).toBe(true);
+    cell.column.set("direction", "descending");
+    expect(cell.$el.hasClass("descending")).toBe(true);
+    cell.column.set("direction", null);
+    expect(cell.$el.hasClass("ascending")).toBe(false);
+    expect(cell.$el.hasClass("descending")).toBe(false);
+  });
+
+  it("will remove its direction CSS class if `sort` is triggered from the collection or pageableCollection#fullCollection", function () {
+    cell.column.set("direction", "ascending");
+    cell.collection.comparator = "id";
+    cell.collection.sort();
+    expect(cell.$el.hasClass("ascending")).toBe(false);
+    expect(cell.$el.hasClass("descending")).toBe(false);
+
+    col = new Backbone.PageableCollection(col.toJSON(), {
       mode: "client"
     });
-
+    col.setSorting("id", 1);
     cell = new Backgrid.HeaderCell({
       column: {
-        name: "title",
-        cell: "string",
-        sortValue: function (model, attr) {
-          return model.get(attr).length;
-        }
+        name: "id",
+        cell: "integer"
       },
-      collection: books
+      collection: col
     });
 
-    cell.render();
+    cell.column.set("direction", "ascending");
+    cell.collection.fullCollection.comparator = "id";
+    cell.collection.fullCollection.sort();
+    expect(cell.$el.hasClass("ascending")).toBe(false);
+    expect(cell.$el.hasClass("descending")).toBe(false);
+  });
 
+  it("with `sortType` set to `toggle`, triggers `backgrid:sort` with the column and direction set to 'ascending' if the column's direction is not set", function () {
+    var column, direction;
+    cell.column.set("sortType", "toggle");
+    cell.collection.on("backgrid:sort", function (col, dir) { column = col; direction = dir; });
     cell.$el.find("a").click();
+    expect(column).toBe(cell.column);
+    expect(direction).toBe("ascending");
+  });
 
-    expect(cell.collection.toJSON()).toEqual([{
-      title: "A Tale of Two Cities"
-    }]);
-
-    cell.collection.getPage(2);
-
-    expect(cell.collection.toJSON()).toEqual([{
-      title: "The Catcher in the Rye"
-    }]);
-
-    cell.collection.getPage(3);
-
-    expect(cell.collection.toJSON()).toEqual([{
-      title: "Alice's Adventures in Wonderland"
-    }]);
-
-    cell.collection.getFirstPage();
-
+  it("with `sortType` set to `toggle`, triggers `backgrid:sort` with the column and direction set to 'descending' if the column's direction is set to 'ascending'", function () {
+    var column, direction;
+    cell.column.set("sortType", "toggle");
+    cell.column.set("direction", "ascending");
+    cell.collection.on("backgrid:sort", function (col, dir) { column = col; direction = dir; });
     cell.$el.find("a").click();
+    expect(column).toBe(cell.column);
+    expect(direction).toBe("descending");
+  });
 
-    expect(cell.collection.toJSON()).toEqual([{
-      title: "Alice's Adventures in Wonderland"
-    }]);
-
+  it("with `sortType` set to `toggle`, triggers `backgrid:sort` with the column and direction set to 'ascending' if the column's direction is set to 'descending'", function () {
+    var column, direction;
+    cell.column.set("sortType", "toggle");
+    cell.column.set("direction", "descending");
+    cell.collection.on("backgrid:sort", function (col, dir) { column = col; direction = dir; });
     cell.$el.find("a").click();
-
-    expect(cell.collection.toJSON()).toEqual([{
-      title: "Alice's Adventures in Wonderland"
-    }]);
-
+    expect(column).toBe(cell.column);
+    expect(direction).toBe("ascending");
   });
 
 });
@@ -248,29 +285,23 @@ describe("A HeaderRow", function () {
     row.render();
   });
 
-  it("throws TypeError when a list of column definition is not given", function () {
-    expect(function () {
-      new Backgrid.HeaderRow({
-        collection: new Backbone.Collection()
-      });
-    }).toThrow(new TypeError("'columns' is required"));
-  });
-
-  it("throws TypeError when a collection is not given", function () {
-    expect(function () {
-      new Backgrid.HeaderRow({
-        columns: [{
-          name: "name",
-          cell: "string"
-        }]
-      });
-    }).toThrow(new TypeError("'collection' is required"));
-  });
-
   it("renders a row of header cells", function () {
     expect(row.$el[0].tagName).toBe("TR");
-    expect(row.$el[0].innerHTML).toBe('<th class="editable sortable renderable"><a>name<b class="sort-caret"></b></a></th>' +
-                                      '<th class="editable sortable renderable"><a>year<b class="sort-caret"></b></a></th>');
+    var th1 = $(row.el.childNodes[0]);
+    expect(th1.hasClass("editable")).toBe(true);
+    expect(th1.hasClass("sortable")).toBe(true);
+    expect(th1.hasClass("renderable")).toBe(true);
+    expect(th1.hasClass("name")).toBe(true);
+    expect(th1.find("a").text()).toBe("name");
+    expect(th1.find("a").eq(1).is($("b", {className: "sort-caret"})));
+
+    var th2 = $(row.el.childNodes[1]);
+    expect(th2.hasClass("editable")).toBe(true);
+    expect(th2.hasClass("sortable")).toBe(true);
+    expect(th2.hasClass("renderable")).toBe(true);
+    expect(th2.hasClass("year")).toBe(true);
+    expect(th2.find("a").text()).toBe("year");
+    expect(th2.find("a > b:last-child").eq(0).hasClass("sort-caret")).toBe(true);
   });
 
   it("resets the carets of the non-sorting columns", function () {
@@ -283,7 +314,13 @@ describe("A HeaderRow", function () {
   it("inserts or removes a cell if a column is added or removed", function () {
     row.columns.add({name: "price", cell: "number"});
     expect(row.$el.children().length).toBe(3);
-    expect(row.$el.children().last()[0].outerHTML).toBe('<th class="editable sortable renderable"><a>price<b class="sort-caret"></b></a></th>');
+    var lastTh = $(row.el.lastChild);
+    expect(lastTh.hasClass("editable")).toBe(true);
+    expect(lastTh.hasClass("sortable")).toBe(true);
+    expect(lastTh.hasClass("renderable")).toBe(true);
+    expect(lastTh.hasClass("price")).toBe(true);
+    expect(lastTh.find("a").text()).toBe("price");
+    expect(lastTh.find("a > b:last-child").eq(0).hasClass("sort-caret")).toBe(true);
 
     row.columns.add({name: "publisher", cell: "string", renderable: false});
     expect(row.$el.children().length).toBe(4);
@@ -292,31 +329,18 @@ describe("A HeaderRow", function () {
 
     row.columns.remove(row.columns.first());
     expect(row.$el.children().length).toBe(3);
-    expect(row.$el.children().first()[0].outerHTML).toBe('<th class="editable sortable renderable"><a>year<b class="sort-caret"></b></a></th>');
+    var firstTh = $(row.el.firstChild);
+    expect(firstTh.hasClass("editable")).toBe(true);
+    expect(firstTh.hasClass("sortable")).toBe(true);
+    expect(firstTh.hasClass("renderable")).toBe(true);
+    expect(firstTh.hasClass("year")).toBe(true);
+    expect(firstTh.find("a").text()).toBe("year");
+    expect(firstTh.find("a > b:last-child").eq(0).hasClass("sort-caret")).toBe(true);
   });
 
 });
 
 describe("A Header", function () {
-
-  it("throws TypeError if a list of column definitions is not given", function () {
-    expect(function () {
-      new Backgrid.Header({
-        collection: new Backbone.Collection()
-      });
-    }).toThrow(new TypeError("'columns' is required"));
-  });
-
-  it("throws TypeError if a collection is not given", function () {
-    expect(function () {
-      new Backgrid.Header({
-        columns: [{
-          name: "title",
-          cell: "string"
-        }]
-      });
-    }).toThrow(new TypeError("'collection' is required"));
-  });
 
   var Book = Backbone.Model.extend({});
 
@@ -356,8 +380,22 @@ describe("A Header", function () {
 
   it("renders a header with a row of header cells", function () {
     expect(head.$el[0].tagName).toBe("THEAD");
-    expect(head.$el[0].innerHTML).toBe('<tr><th class="editable sortable renderable"><a>name<b class="sort-caret"></b></a></th>' +
-                                      '<th class="editable sortable renderable"><a>year<b class="sort-caret"></b></a></th></tr>');
+
+    var th1 = $(head.row.el.childNodes[0]);
+    expect(th1.hasClass("editable")).toBe(true);
+    expect(th1.hasClass("sortable")).toBe(true);
+    expect(th1.hasClass("renderable")).toBe(true);
+    expect(th1.hasClass("name")).toBe(true);
+    expect(th1.find("a").text()).toBe("name");
+    expect(th1.find("a").eq(1).is($("b", {className: "sort-caret"})));
+
+    var th2 = $(head.row.el.childNodes[1]);
+    expect(th2.hasClass("editable")).toBe(true);
+    expect(th2.hasClass("sortable")).toBe(true);
+    expect(th2.hasClass("renderable")).toBe(true);
+    expect(th2.hasClass("year")).toBe(true);
+    expect(th2.find("a").text()).toBe("year");
+    expect(th2.find("a > b:last-child").eq(0).hasClass("sort-caret")).toBe(true);
   });
 
 });
